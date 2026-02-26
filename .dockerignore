@@ -1,0 +1,45 @@
+# VCS / local tooling
+.git/
+.gitignore
+.dockerignore
+.vscode/
+.idea/
+
+# Virtual environments
+.venv/
+.venv-ocr/
+venv/
+env/
+
+# Python caches / bytecode
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Tests / lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local env / logs
+.env
+.env.*
+*.log
+
+# Project files not needed for API image build
+data/
+runs/
+streamlit.py
+data.yaml
+README.md
+READMEPRO.md
+test1.jpg
+yolov8n.pt
