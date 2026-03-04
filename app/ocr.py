@@ -16,9 +16,53 @@ os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "1")
 logger = logging.getLogger(__name__)
 
 IGNORE_WORDS = {"IND", "INDIA", "IN"}
+STATE_CODES = {
+    "AN",  # Andaman and Nicobar Islands
+    "AP",  # Andhra Pradesh
+    "AR",  # Arunachal Pradesh
+    "AS",  # Assam
+    "BR",  # Bihar
+    "CG",  # Chhattisgarh
+    "CH",  # Chandigarh
+    "DD",  # Daman and Diu
+    "DL",  # Delhi
+    "DN",  # Dadra and Nagar Haveli
+    "GA",  # Goa
+    "GJ",  # Gujarat
+    "HP",  # Himachal Pradesh
+    "HR",  # Haryana
+    "JH",  # Jharkhand
+    "JK",  # Jammu and Kashmir
+    "KA",  # Karnataka
+    "KL",  # Kerala
+    "LA",  # Ladakh
+    "LD",  # Lakshadweep
+    "MH",  # Maharashtra
+    "ML",  # Meghalaya
+    "MN",  # Manipur
+    "MP",  # Madhya Pradesh
+    "MZ",  # Mizoram
+    "NL",  # Nagaland
+    "OD",  # Odisha
+    "PB",  # Punjab
+    "PY",  # Puducherry
+    "RJ",  # Rajasthan
+    "SK",  # Sikkim
+    "TN",  # Tamil Nadu
+    "TR",  # Tripura
+    "TS",  # Telangana
+    "UK",  # Uttarakhand
+    "UP",  # Uttar Pradesh
+    "WB",  # West Bengal
+}
 PLATE_PATTERNS = [
     re.compile(r"^[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{3,4}$"),  # MH12AB1234 / KA03H4025 / PY01CV8008
 ]
+
+# OCR vertical reading direction:
+# - "top_to_bottom" (default)
+# - "bottom_to_top"
+READ_ORDER = "top_to_bottom"
 
 
 def _clear_paddle_modules() -> None:
@@ -275,14 +319,25 @@ def _join_tokens_reading_order(tokens: list[dict]) -> tuple[str | None, float]:
         if not placed:
             lines.append({"y": token["yc"], "items": [token]})
 
-    lines.sort(key=lambda line: line["y"])
+    reverse_vertical = READ_ORDER == "bottom_to_top"
+    lines.sort(key=lambda line: line["y"], reverse=reverse_vertical)
     for line in lines:
         line["items"].sort(key=lambda t: t["xc"])
 
-    line_texts = ["".join(t["text"] for t in line["items"]) for line in lines]
+    # Build a single reading-order token stream, then prioritize token(s) that
+    # begin with a valid state/UT code so misordered OCR chunks can be corrected.
+    ordered_tokens = [t for line in lines for t in line["items"]]
+    state_token_idx = next(
+        (i for i, token in enumerate(ordered_tokens) if token["text"][:2] in STATE_CODES),
+        None,
+    )
+    if state_token_idx not in (None, 0):
+        ordered_tokens = [ordered_tokens[state_token_idx]] + ordered_tokens[:state_token_idx] + ordered_tokens[state_token_idx + 1 :]
 
-    # Plate bottom line often carries more digits. Swap two-line order if OCR line grouping flips them.
-    if len(line_texts) == 2:
+    line_texts = ["".join(token["text"] for token in ordered_tokens)]
+
+    # Keep existing heuristic only for standard reading order.
+    if not reverse_vertical and len(line_texts) == 2:
         def digit_ratio(s: str) -> float:
             return 0.0 if not s else sum(ch.isdigit() for ch in s) / len(s)
 
